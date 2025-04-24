@@ -362,3 +362,6 @@ ruby_sized_realloc_n(void *ptr, size_t new_count, size_t element_size, size_t ol
 #define ruby_sized_xrealloc2 ruby_sized_xrealloc2_inlined
 #define ruby_sized_xfree ruby_sized_xfree_inlined
 #endif /* INTERNAL_GC_H */
+
+int gc_update_references_weak_table_i(VALUE obj);
+int gc_update_references_weak_table_replace_i(VALUE *obj);

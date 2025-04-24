@@ -3801,6 +3801,12 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
             }
           case imemo_callcache:
             RB_DEBUG_COUNTER_INC(obj_imemo_callcache);
+            const struct rb_callcache *cc = (const struct rb_callcache *)obj;
+
+            if (vm_cc_refinement_p(cc)) {
+              rb_vm_delete_cc_refinement(cc);
+            }
+
             break;
           case imemo_constcache:
             RB_DEBUG_COUNTER_INC(obj_imemo_constcache);
@@ -14467,4 +14473,22 @@ ruby_xrealloc2(void *ptr, size_t n, size_t new_size)
     ruby_malloc_info_line = __LINE__;
 #endif
     return ruby_xrealloc2_body(ptr, n, new_size);
+}
+
+int
+gc_update_references_weak_table_i(VALUE obj)
+{
+    int ret;
+    asan_unpoisoning_object(obj) {
+        ret = BUILTIN_TYPE(obj) == T_MOVED ? ST_REPLACE : ST_CONTINUE;
+    }
+    return ret;
+}
+
+int
+gc_update_references_weak_table_replace_i(VALUE *obj)
+{
+    *obj = rb_gc_location(*obj);
+
+    return ST_CONTINUE;
 }
