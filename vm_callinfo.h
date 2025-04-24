@@ -336,6 +336,7 @@ vm_cc_new(VALUE klass,
         break;
       case cc_type_refinement:
         *(VALUE *)&cc->flags |= VM_CALLCACHE_REFINEMENT;
+        rb_vm_insert_cc_refinement(NULL, cc);
         break;
     }
 

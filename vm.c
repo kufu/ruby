@@ -2812,6 +2812,61 @@ rb_vm_call_cfunc(VALUE recv, VALUE (*func)(VALUE), VALUE arg,
 
 /* vm */
 
+struct global_vm_cc_refinement_foreach_data {
+    st_table *new_tbl;
+};
+
+static int
+vm_weak_table_cc_refinement_foreach_i(st_data_t key, st_data_t value, st_data_t data)
+{
+    struct global_vm_cc_refinement_foreach_data *cc_refinement_foreach_data = (struct global_vm_cc_refinement_foreach_data *)data;
+    struct st_table *new_tbl = cc_refinement_foreach_data->new_tbl;
+
+    int ret = gc_update_references_weak_table_i((VALUE)key);
+
+    const struct rb_callcache *cc = (struct rb_callcache *)key;
+    switch (ret) {
+        case ST_CONTINUE:
+            break;
+        case ST_DELETE:
+            return ret;
+        case ST_REPLACE: {
+            VALUE new_key = (VALUE)key;
+            gc_update_references_weak_table_replace_i(&new_key);
+            cc = (struct rb_callcache *)new_key;
+            break;
+        }
+        default:
+          rb_bug("vm_weak_table_cc_refinement_foreach_i: return value %d not supported", ret);
+    }
+
+    DURING_GC_COULD_MALLOC_REGION_START();
+    {
+        rb_vm_insert_cc_refinement(new_tbl, cc);
+    }
+    DURING_GC_COULD_MALLOC_REGION_END();
+
+    return ret;
+}
+
+static st_table *
+vm_weak_table_cc_refinement_rebuild(st_table *cc_refinement_table)
+{
+    st_table *new_tbl = NULL;
+    DURING_GC_COULD_MALLOC_REGION_START();
+    {
+        new_tbl = st_init_numtable_with_size(st_table_size(cc_refinement_table));
+    }
+    DURING_GC_COULD_MALLOC_REGION_END();
+
+    struct global_vm_cc_refinement_foreach_data cc_refinement_foreach_data = {
+        .new_tbl = new_tbl,
+    };
+
+    st_foreach(cc_refinement_table, vm_weak_table_cc_refinement_foreach_i, (st_data_t)&cc_refinement_foreach_data);
+    return new_tbl;
+}
+
 void
 rb_vm_update_references(void *ptr)
 {
@@ -2843,6 +2898,14 @@ rb_vm_update_references(void *ptr)
         if (vm->coverages) {
             vm->coverages = rb_gc_location(vm->coverages);
             vm->me2counter = rb_gc_location(vm->me2counter);
+        }
+
+        if (vm->cc_refinement_table && st_table_size(vm->cc_refinement_table) > 0) {
+            st_table *old_tbl = vm->cc_refinement_table;
+            st_table *new_tbl = vm_weak_table_cc_refinement_rebuild(vm->cc_refinement_table);
+
+            vm->cc_refinement_table = new_tbl;
+            st_free_table(old_tbl);
         }
     }
 }
@@ -3060,6 +3123,10 @@ ruby_vm_destruct(rb_vm_t *vm)
             st_free_table(vm->ci_table);
             vm->ci_table = NULL;
         }
+        if (vm->cc_refinement_table) {
+            st_free_table(vm->cc_refinement_table);
+            vm->cc_refinement_table = NULL;
+        }
         if (vm->frozen_strings) {
             st_free_table(vm->frozen_strings);
             vm->frozen_strings = 0;
@@ -3155,6 +3222,7 @@ vm_memsize(const void *ptr)
         vm_memsize_builtin_function_table(vm->builtin_function_table) +
         rb_id_table_memsize(vm->negative_cme_table) +
         rb_st_memsize(vm->overloaded_cme_table) +
+        rb_st_memsize(vm->cc_refinement_table) +
         vm_memsize_constant_cache() +
         GET_SHAPE_TREE()->cache_size * sizeof(redblack_node_t)
     );
@@ -4234,6 +4302,7 @@ Init_vm_objects(void)
     vm->mark_object_ary = rb_ary_hidden_new(128);
     vm->loading_table = st_init_strtable();
     vm->ci_table = st_init_table(&vm_ci_hashtype);
+    vm->cc_refinement_table = st_init_numtable();
     vm->frozen_strings = st_init_table_with_size(&rb_fstring_hash_type, 10000);
 }
 
