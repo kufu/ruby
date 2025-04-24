@@ -1246,6 +1246,15 @@ rb_gc_obj_free_vm_weak_references(VALUE obj)
         break;
       case T_IMEMO:
         switch (imemo_type(obj)) {
+          case imemo_callcache: {
+            const struct rb_callcache *cc = (const struct rb_callcache *)obj;
+
+            if (vm_cc_refinement_p(cc)) {
+                rb_vm_delete_cc_refinement(cc);
+            }
+
+            break;
+          }
           case imemo_callinfo:
             rb_vm_ci_free((const struct rb_callinfo *)obj);
             break;
@@ -3436,6 +3445,64 @@ vm_weak_table_frozen_strings_foreach(st_data_t key, st_data_t value, st_data_t d
 
 struct st_table *rb_generic_ivtbl_get(void);
 
+struct global_vm_cc_refinement_foreach_data {
+    struct global_vm_table_foreach_data *iter_data;
+    st_table *new_tbl;
+};
+
+static int
+vm_weak_table_cc_refinement_foreach_i(st_data_t key, st_data_t value, st_data_t data)
+{
+    struct global_vm_cc_refinement_foreach_data *cc_refinement_foreach_data = (struct global_vm_cc_refinement_foreach_data *)data;
+    struct global_vm_table_foreach_data *iter_data = cc_refinement_foreach_data->iter_data;
+    struct st_table *new_tbl = cc_refinement_foreach_data->new_tbl;
+
+    int ret = iter_data->callback((VALUE)key, iter_data->data);
+
+    const struct rb_callcache *cc = (struct rb_callcache *)key;
+    switch (ret) {
+        case ST_CONTINUE:
+            break;
+        case ST_DELETE:
+            return ret;
+        case ST_REPLACE: {
+            VALUE new_key = (VALUE)key;
+            iter_data->update_callback(&new_key, iter_data->data);
+            cc = (struct rb_callcache *)new_key;
+            break;
+        }
+        default:
+          rb_bug("vm_weak_table_cc_refinement_foreach_i: return value %d not supported", ret);
+    }
+
+    DURING_GC_COULD_MALLOC_REGION_START();
+    {
+        rb_vm_insert_cc_refinement(new_tbl, cc);
+    }
+    DURING_GC_COULD_MALLOC_REGION_END();
+
+    return ret;
+}
+
+static st_table *
+vm_weak_table_cc_refinement_rebuild(st_table *cc_refinement_table, struct global_vm_table_foreach_data *iter_data)
+{
+    st_table *new_tbl = NULL;
+    DURING_GC_COULD_MALLOC_REGION_START();
+    {
+        new_tbl = st_init_numtable_with_size(st_table_size(cc_refinement_table));
+    }
+    DURING_GC_COULD_MALLOC_REGION_END();
+
+    struct global_vm_cc_refinement_foreach_data cc_refinement_foreach_data = {
+        .iter_data = iter_data,
+        .new_tbl = new_tbl,
+    };
+
+    st_foreach(cc_refinement_table, vm_weak_table_cc_refinement_foreach_i, (st_data_t)&cc_refinement_foreach_data);
+    return new_tbl;
+}
+
 void
 rb_gc_vm_weak_table_foreach(vm_table_foreach_callback_func callback,
                             vm_table_update_callback_func update_callback,
@@ -3496,6 +3563,17 @@ rb_gc_vm_weak_table_foreach(vm_table_foreach_callback_func callback,
             vm_weak_table_foreach_update_key,
             (st_data_t)&foreach_data
         );
+        break;
+      }
+      case RB_GC_VM_CC_REFINEMENT_TABLE: {
+        st_table_size(vm->cc_refinement_table);
+        if (vm->cc_refinement_table && st_table_size(vm->cc_refinement_table) > 0) {
+            st_table *old_tbl = vm->cc_refinement_table;
+            st_table *new_tbl = vm_weak_table_cc_refinement_rebuild(vm->cc_refinement_table, &foreach_data);
+
+            vm->cc_refinement_table = new_tbl;
+            st_free_table(old_tbl);
+        }
         break;
       }
       default:
