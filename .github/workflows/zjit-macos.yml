@@ -74,7 +74,7 @@ jobs:
           # Set fetch-depth: 10 so that Launchable can receive commits information.
           fetch-depth: 10
 
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@920ab1831fbf4fb3ef75c8ead83556c918bb7290 # v2.79.8
         with:
           tool: nextest@0.9
         if: ${{ matrix.test_task == 'zjit-test' }}

@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Install winget
-        uses: Cyberboss/install-winget@v1
+        uses: Cyberboss/install-winget@1c6f189175e9f015bf1aa113cd1cc6c73efb9d47 # v1.1.1
 
       - name: Install or update WSL
         uses: Ubuntu/WSL/.github/actions/wsl-install@main
