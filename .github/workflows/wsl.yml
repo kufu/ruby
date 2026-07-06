@@ -33,12 +33,12 @@ jobs:
         uses: Cyberboss/install-winget@1c6f189175e9f015bf1aa113cd1cc6c73efb9d47 # v1.1.1
 
       - name: Install or update WSL
-        uses: Ubuntu/WSL/.github/actions/wsl-install@main
+        uses: Ubuntu/WSL/.github/actions/wsl-install@f861f1083e518354e4c3637b08c0edfcf8bc3d51 # main
         with:
           distro: Ubuntu-24.04
 
       - name: Install dependencies
-        uses: Ubuntu/WSL/.github/actions/wsl-bash@main
+        uses: Ubuntu/WSL/.github/actions/wsl-bash@f861f1083e518354e4c3637b08c0edfcf8bc3d51 # main
         with:
          distro: Ubuntu-24.04
          working-dir: /tmp/github/
@@ -47,14 +47,14 @@ jobs:
             DEBIAN_FRONTEND=noninteractive sudo apt install -y ruby build-essential autoconf libssl-dev libyaml-dev zlib1g-dev libgmp-dev libffi-dev
 
       - name: Check out the repository
-        uses: Ubuntu/WSL/.github/actions/wsl-checkout@main
+        uses: Ubuntu/WSL/.github/actions/wsl-checkout@f861f1083e518354e4c3637b08c0edfcf8bc3d51 # main
         with:
           distro: Ubuntu-24.04
           working-dir: /tmp/github/
           submodules: true
 
       - name: Build
-        uses: Ubuntu/WSL/.github/actions/wsl-bash@main
+        uses: Ubuntu/WSL/.github/actions/wsl-bash@f861f1083e518354e4c3637b08c0edfcf8bc3d51 # main
         with:
          distro: Ubuntu-24.04
          working-dir: /tmp/github/
@@ -66,7 +66,7 @@ jobs:
             make -j4
 
       - name: Test
-        uses: Ubuntu/WSL/.github/actions/wsl-bash@main
+        uses: Ubuntu/WSL/.github/actions/wsl-bash@f861f1083e518354e4c3637b08c0edfcf8bc3d51 # main
         with:
          distro: Ubuntu-24.04
          working-dir: /tmp/github/
